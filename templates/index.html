@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Immich Backup Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="topbar">
+    <h1>📦 Immich Backup</h1>
+    <a href="{{ url_for('settings') }}">Settings</a>
+  </div>
+
+  <div class="container">
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="label">Total Assets Tracked</div>
+        <div class="value" id="stat-total">{{ stats.total_assets }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Backed Up Locally</div>
+        <div class="value" id="stat-local">{{ stats.local_backed_up }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Backed Up to S3</div>
+        <div class="value" id="stat-s3">{{ stats.s3_backed_up }}</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Run Backup</h2>
+      <div class="row">
+        <button class="btn" id="run-btn" onclick="runBackup()" {% if running %}disabled{% endif %}>
+          {% if running %}Backup running…{% else %}Run Backup Now{% endif %}
+        </button>
+        <span class="muted">
+          {% if cfg.schedule_enabled %}
+            Scheduled: <code>{{ cfg.schedule_cron }}</code>
+            {% if next_run %} &middot; next run {{ next_run }}{% endif %}
+          {% else %}
+            Scheduling is disabled.
+          {% endif %}
+        </span>
+      </div>
+      <div id="status-msg" class="muted"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Recent Runs</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Started</th>
+            <th>Trigger</th>
+            <th>Status</th>
+            <th>Total</th>
+            <th>Local</th>
+            <th>S3</th>
+            <th>Skipped</th>
+            <th>Errors</th>
+          </tr>
+        </thead>
+        <tbody id="runs-body">
+          {% for run in runs %}
+          <tr>
+            <td>{{ run.started_at }}</td>
+            <td>{{ run.trigger }}</td>
+            <td><span class="badge {{ run.status }}">{{ run.status }}</span></td>
+            <td>{{ run.total_assets }}</td>
+            <td>{{ run.copied_local }}</td>
+            <td>{{ run.uploaded_s3 }}</td>
+            <td>{{ run.skipped }}</td>
+            <td>{{ run.errors }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="muted">No runs yet — click "Run Backup Now" to start your first backup.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if not cfg.immich_url or (not cfg.local_backup_enabled and not cfg.s3_backup_enabled) %}
+    <div class="panel" style="border-color: var(--yellow);">
+      <h2 style="color: var(--yellow);">Setup needed</h2>
+      <p class="muted">Head to <a href="{{ url_for('settings') }}" style="color: var(--accent);">Settings</a> to configure your Immich connection and at least one backup destination.</p>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <script>
+    function runBackup() {
+      const btn = document.getElementById('run-btn');
+      const msg = document.getElementById('status-msg');
+      btn.disabled = true;
+      btn.textContent = 'Backup running…';
+      fetch('/api/run', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => { msg.textContent = data.message; poll(); });
+    }
+
+    function poll() {
+      fetch('/api/status').then(r => r.json()).then(data => {
+        document.getElementById('stat-total').textContent = data.stats.total_assets;
+        document.getElementById('stat-local').textContent = data.stats.local_backed_up;
+        document.getElementById('stat-s3').textContent = data.stats.s3_backed_up;
+
+        const btn = document.getElementById('run-btn');
+        if (data.running) {
+          btn.disabled = true;
+          btn.textContent = 'Backup running…';
+          setTimeout(poll, 2000);
+        } else {
+          btn.disabled = false;
+          btn.textContent = 'Run Backup Now';
+          renderRuns(data.runs);
+        }
+      });
+    }
+
+    function renderRuns(runs) {
+      const tbody = document.getElementById('runs-body');
+      if (!runs.length) return;
+      tbody.innerHTML = runs.map(r => `
+        <tr>
+          <td>${r.started_at}</td>
+          <td>${r.trigger}</td>
+          <td><span class="badge ${r.status}">${r.status}</span></td>
+          <td>${r.total_assets}</td>
+          <td>${r.copied_local}</td>
+          <td>${r.uploaded_s3}</td>
+          <td>${r.skipped}</td>
+          <td>${r.errors}</td>
+        </tr>
+      `).join('');
+    }
+  </script>
+</body>
+</html>

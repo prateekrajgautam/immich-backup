@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings - Immich Backup</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="topbar">
+    <h1>📦 Immich Backup</h1>
+    <a href="{{ url_for('index') }}">← Dashboard</a>
+  </div>
+
+  <div class="container">
+    <form method="POST" action="{{ url_for('settings') }}">
+
+      <fieldset>
+        <legend>Immich Connection</legend>
+        <div class="field">
+          <label>Immich Server URL</label>
+          <input type="text" name="immich_url" value="{{ cfg.immich_url }}" placeholder="http://localhost:2283">
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" name="immich_api_key" value="{{ cfg.immich_api_key }}" placeholder="Generate in Immich > Account Settings > API Keys">
+        </div>
+        <div class="row">
+          <button type="button" class="btn secondary" onclick="testConnection()">Test Connection</button>
+          <span id="test-result" class="muted"></span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Immich Library Filesystem Access</legend>
+        <div class="field">
+          <label>Path where the Immich library is mounted on this machine</label>
+          <input type="text" name="immich_library_root" value="{{ cfg.immich_library_root }}" placeholder="/mnt/immich/library">
+          <p class="muted">Mount Immich's upload/library folder (read-only is fine) somewhere this app can see it, then point this at it.</p>
+        </div>
+        <div class="field">
+          <label>Immich's internal path prefix to strip (advanced)</label>
+          <input type="text" name="immich_internal_prefix" value="{{ cfg.immich_internal_prefix }}" placeholder="/usr/src/app/upload">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Local Backup (External Drive)</legend>
+        <div class="checkbox-row field">
+          <input type="checkbox" name="local_backup_enabled" id="local_backup_enabled" {% if cfg.local_backup_enabled %}checked{% endif %}>
+          <label for="local_backup_enabled" style="margin:0;">Enable local backup</label>
+        </div>
+        <div class="field">
+          <label>Backup destination path</label>
+          <input type="text" name="local_backup_path" value="{{ cfg.local_backup_path }}" placeholder="/mnt/external-drive/immich-backup">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>S3 / Glacier Backup</legend>
+        <div class="checkbox-row field">
+          <input type="checkbox" name="s3_backup_enabled" id="s3_backup_enabled" {% if cfg.s3_backup_enabled %}checked{% endif %}>
+          <label for="s3_backup_enabled" style="margin:0;">Enable S3 backup</label>
+        </div>
+        <div class="field">
+          <label>Bucket name</label>
+          <input type="text" name="s3_bucket" value="{{ cfg.s3_bucket }}" placeholder="my-immich-backups">
+        </div>
+        <div class="field">
+          <label>Key prefix</label>
+          <input type="text" name="s3_prefix" value="{{ cfg.s3_prefix }}" placeholder="immich-backup/">
+        </div>
+        <div class="field">
+          <label>Region</label>
+          <input type="text" name="s3_region" value="{{ cfg.s3_region }}" placeholder="us-east-1">
+        </div>
+        <div class="field">
+          <label>Storage class</label>
+          <select name="s3_storage_class">
+            {% for sc in ['STANDARD', 'STANDARD_IA', 'GLACIER_IR', 'GLACIER', 'DEEP_ARCHIVE'] %}
+            <option value="{{ sc }}" {% if cfg.s3_storage_class == sc %}selected{% endif %}>{{ sc }}</option>
+            {% endfor %}
+          </select>
+          <p class="muted">GLACIER / DEEP_ARCHIVE = cheapest, but objects need a restore request before re-download. GLACIER_IR allows instant retrieval at a higher cost.</p>
+        </div>
+        <div class="field">
+          <label>AWS Access Key ID</label>
+          <input type="text" name="aws_access_key_id" value="{{ cfg.aws_access_key_id }}">
+        </div>
+        <div class="field">
+          <label>AWS Secret Access Key</label>
+          <input type="password" name="aws_secret_access_key" value="{{ cfg.aws_secret_access_key }}">
+        </div>
+        <div class="field">
+          <label>Custom S3 endpoint URL (optional — for non-AWS S3-compatible storage)</label>
+          <input type="text" name="s3_endpoint_url" value="{{ cfg.s3_endpoint_url }}" placeholder="leave blank for AWS">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Schedule</legend>
+        <div class="checkbox-row field">
+          <input type="checkbox" name="schedule_enabled" id="schedule_enabled" {% if cfg.schedule_enabled %}checked{% endif %}>
+          <label for="schedule_enabled" style="margin:0;">Enable scheduled backups</label>
+        </div>
+        <div class="field">
+          <label>Cron expression</label>
+          <input type="text" name="schedule_cron" value="{{ cfg.schedule_cron }}" placeholder="0 3 * * *">
+          <p class="muted">Standard 5-field cron syntax. Default "0 3 * * *" runs nightly at 3:00 AM server time.</p>
+        </div>
+      </fieldset>
+
+      <button type="submit" class="btn">Save Settings</button>
+    </form>
+  </div>
+
+  <script>
+    function testConnection() {
+      const el = document.getElementById('test-result');
+      el.textContent = 'Testing...';
+      fetch('/api/test-connection', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          el.textContent = (data.ok ? '✓ ' : '✗ ') + data.message;
+          el.style.color = data.ok ? 'var(--green)' : 'var(--red)';
+        });
+    }
+  </script>
+</body>
+</html>
