@@ -1,0 +1,4 @@
+services:
+  app:
+    build: .
+    image: "prateekrajgautam/immich-backup:latest"  # This names the built image

@@ -11,6 +11,14 @@ It only copies/uploads files that are new or changed since the last
 successful backup (tracked via Immich's checksum for each asset), so re-runs
 are fast.
 
+## Dashboard
+
+![](./Dashboard.png)
+
+## Settings
+
+![](./Settings.png)
+
 ## How it works
 
 1. The app calls the Immich API to list all assets (photos/videos) and their
@@ -151,3 +159,61 @@ always`, etc.
 - Deleted-in-Immich assets are not automatically pruned from backups — this
   tool is additive/incremental by design (safer for a backup tool).
 # immich-backup
+
+
+
+
+# docker compose
+
+
+Create `docker-compose.yml`
+```yml
+
+# docker-compose.yml for the Immich Backup dashboard.
+#
+# Intended to run alongside your existing Immich docker-compose stack so it
+# can read the same library volume. Adjust the volume source paths below to
+# match your actual Immich setup.
+
+services:
+  immich-backup:
+    image: prateekrajgautam/immich-backup:latest
+    container_name: immich-backup
+    restart: unless-stopped
+    ports:
+      - "2284:2284"
+    environment:
+      - PORT=2284
+      - TZ=UTC
+    volumes:
+      # Persist app config + the incremental-backup state database
+      - ./data:/app/data
+
+      # Read-only access to the Immich library (the same folder Immich's
+      # "upload" volume points at on the host). Update the left-hand side
+      # to match your Immich docker-compose.yml volume mapping, e.g.:
+      #   immich:
+      #     volumes:
+      #       - ./library:/usr/src/app/upload
+      # would mean you should mount that same "./library" path here.
+      - ${IMMICH_LIBRARY_PATH:-./library}:/immich-library:ro
+
+      # Your external/local backup destination (e.g. a mounted external
+      # drive on the host).
+      - ${LOCAL_BACKUP_PATH:-./backup-destination}:/backup-destination
+
+    # If immich-backup needs to reach Immich by its container name (e.g.
+    # http://immich-server:2283) instead of a host URL, uncomment the line
+    # below and make sure this points at the same network Immich uses.
+    # networks:
+    #   - immich-net
+
+# networks:
+#   immich-net:
+#     external: true
+#     name: immich_default
+```
+
+and start with
+
+`docker compose up -d` or `docker-compose up -d`
